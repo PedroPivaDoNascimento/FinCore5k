@@ -1,4 +1,4 @@
 node_modules/
 .env
-.logs
-FinCore 5k_Documentation.md
+.log
+dist/
