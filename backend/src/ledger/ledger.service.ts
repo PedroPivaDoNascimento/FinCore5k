@@ -1,6 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
-import { Connection, Model, Types } from 'mongoose';
+// TASK FIX 3.1: `Types.ClientSession` nao existe no namespace Types do
+// mongoose 8 (TS2694). `ClientSession` e exportado diretamente pelo pacote
+// (alias de mongodb.ClientSession), portanto a importacao passa a ser feita
+// da raiz de 'mongoose'.
+import { ClientSession, Connection, Model } from 'mongoose';
 import Decimal from 'decimal.js';
 import { LedgerEntry, LedgerEntryDocument } from './ledger-entry.schema';
 import { OutboxEvent } from './outbox-event.schema';
@@ -133,7 +137,7 @@ export class LedgerService {
   /** Saldo projetado lido dentro da sessao corrente (read-your-writes). */
   private async getBalanceCentsInSession(
     accountId: string,
-    session: Types.ClientSession,
+    session: ClientSession,
   ): Promise<number> {
     const result = await this.ledgerModel
       .aggregate<{ _id: null; total: number | null }>([
