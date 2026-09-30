@@ -1,1 +1,5 @@
-FinCore 5k_Documentation.md
+# Dependencies
+node_modules/
+
+# Logs
+*.log
