@@ -4,8 +4,30 @@ import {
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import Redlock from 'redlock';
+import Redlock, { type Lock } from 'redlock';
 import { RedisService } from '../redis/redis.service';
+
+/**
+ * Promessa com timeout em ms. Usado no lugar da opcao `signal` do
+ * `redlock.acquire()` (TASK FIX 1.1): em redlock 5.0.0-beta.2 o objeto de
+ * settings de `acquire` e `Partial<Settings>` (driftFactor/retryCount/...),
+ * que NAO possui a propriedade `signal` — causa de TS2353 no build.
+ */
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error(message)), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}
 
 /**
  * TASK 2.4 - Mecanismo de Redlock para retencao de race condition por conta.
@@ -52,12 +74,18 @@ export class DistributedLockService implements OnModuleInit {
    */
   async withAccountLock<T>(accountId: string, fn: () => Promise<T>): Promise<T> {
     const resource = `account:lock:{${accountId}}`; // hash tag p/ Cluster slots
+    let acquired: Lock | undefined;
     try {
-      const lock = await this.redlock.acquire(
-        [resource],
-        this.ttlMs,
-        { signal: AbortSignal.timeout(this.acquireTimeoutMs) },
+      // TASK FIX 1.1: `signal` removido do objeto de opcoes de `acquire`
+      // (nao existe em Partial<Settings> do redlock v5). O timeout curto de
+      // aquisicao de 500ms (RULES.md secao 2.3) passa a ser aplicado via
+      // wrapper de promessa; o TTL/duracao do lock permanece this.ttlMs (2s).
+      acquired = await withTimeout(
+        this.redlock.acquire([resource], this.ttlMs),
+        this.acquireTimeoutMs,
+        `Timeout de aquisicao de lock (${this.acquireTimeoutMs}ms) para conta ${accountId}.`,
       );
+      const lock = acquired;
       try {
         return await fn();
       } finally {
@@ -66,6 +94,17 @@ export class DistributedLockService implements OnModuleInit {
         );
       }
     } catch (err) {
+      // Timeout de aquisicao: o lock pode ter sido obtido no Redis apos o
+      // prazo de 500ms. NAO deletar a chave diretamente: como `acquire` pode
+      // completar-se logo apos o timeout, um DEL causaria liberacao indevida
+      // (risco de double-spending). O lock expira naturalmente pelo TTL (2s).
+      if (!acquired && err instanceof Error && err.message.startsWith('Timeout de aquisicao')) {
+        this.logger.warn(
+          `Aquisicao de lock ${resource} excedeu ${this.acquireTimeoutMs}ms; ` +
+            `chave sera expirada pelo TTL (${this.ttlMs}ms).`,
+        );
+        throw new AccountLockContentionError(accountId);
+      }
       if (err instanceof Error && err.name === 'ExecutionError') {
         throw new AccountLockContentionError(accountId);
       }
