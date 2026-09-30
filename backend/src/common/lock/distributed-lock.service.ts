@@ -14,7 +14,7 @@ import { RedisService } from '../redis/redis.service';
  *  - Lock adquirido no Redis ANTES de abrir a sessao no MongoDB.
  *  - Timeout curto de aquisicao: 500ms.
  *  - TTL de execucao estrito: 2.000ms.
- * Chave de lock: account:lock:{accountId} (ARCHITECTURE.md secao 2.2).
+ * Chave de lock: account:lock:{userId} (ARCHITECTURE.md secao 2.2).
  */
 @Injectable()
 export class DistributedLockService implements OnModuleInit {
@@ -35,7 +35,7 @@ export class DistributedLockService implements OnModuleInit {
     // Redlock v5 exige array de clientes Redis (Cluster nodes em prod).
     this.redlock = new Redlock([redis.client as never], {
       driftFactor: 0.01,
-      retryCount: 0, // falha rapida: sem retries alem do timeout de 500ms
+      retryCount: 0, // falha rapida: sem retries alem do timeout de aquisicao
       retryDelay: 50,
     });
   }
@@ -48,28 +48,42 @@ export class DistributedLockService implements OnModuleInit {
 
   /**
    * Adquire o lock exclusivo da conta e executa `fn` sob sua protecao.
-   * Lancara HTTP 409 (via controller) quando a conta estiver contentionada.
+   * A aquisicao e abortada apos `acquireTimeoutMs` (500ms por RULES.md 2.3),
+   * lancarando AccountLockContentionError quando a conta estiver contentionada
+   * (traduzido para HTTP 409 pela camada de transacoes).
    */
-  async withAccountLock<T>(accountId: string, fn: () => Promise<T>): Promise<T> {
+  async withAccountLock<T>(
+    accountId: string,
+    fn: () => Promise<T>,
+  ): Promise<T> {
     const resource = `account:lock:{${accountId}}`; // hash tag p/ Cluster slots
+    let lock;
     try {
-      const lock = await this.redlock.acquire(
-        [resource],
-        this.ttlMs,
-        { signal: AbortSignal.timeout(this.acquireTimeoutMs) },
-      );
-      try {
-        return await fn();
-      } finally {
-        await lock.release().catch((err) =>
-          this.logger.warn(`Falha ao liberar lock ${resource}: ${err}`),
-        );
-      }
+      lock = await Promise.race([
+        this.redlock.acquire([resource], this.ttlMs),
+        new Promise<never>((_, reject) =>
+          setTimeout(
+            () => reject(new AccountLockAcquireTimeoutError(accountId)),
+            this.acquireTimeoutMs,
+          ).unref(),
+        ),
+      ]);
     } catch (err) {
+      if (err instanceof AccountLockAcquireTimeoutError) {
+        throw new AccountLockContentionError(accountId);
+      }
       if (err instanceof Error && err.name === 'ExecutionError') {
         throw new AccountLockContentionError(accountId);
       }
       throw err;
+    }
+
+    try {
+      return await fn();
+    } finally {
+      await lock.release().catch((err) =>
+        this.logger.warn(`Falha ao liberar lock ${resource}: ${err}`),
+      );
     }
   }
 }
@@ -80,5 +94,14 @@ export class AccountLockContentionError extends Error {
       `Conta ${accountId} esta sob contencao de lock (race condition retida).`,
     );
     this.name = 'AccountLockContentionError';
+  }
+}
+
+export class AccountLockAcquireTimeoutError extends Error {
+  constructor(public readonly accountId: string) {
+    super(
+      `Tempo maximo de aquisicao de lock excedido para a conta ${accountId}.`,
+    );
+    this.name = 'AccountLockAcquireTimeoutError';
   }
 }

@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectConnection, InjectModel } from '@nestjs/mongoose';
-import { Connection, Model, Types } from 'mongoose';
+import { ClientSession, Connection, HydratedDocument, Model } from 'mongoose';
 import Decimal from 'decimal.js';
 import { LedgerEntry, LedgerEntryDocument } from './ledger-entry.schema';
 import { OutboxEvent } from './outbox-event.schema';
@@ -31,7 +31,7 @@ export class LedgerService {
     @InjectModel(LedgerEntry.name)
     private readonly ledgerModel: Model<LedgerEntryDocument>,
     @InjectModel(OutboxEvent.name)
-    private readonly outboxModel: Model<import('mongoose').HydratedDocument<OutboxEvent>>,
+    private readonly outboxModel: Model<HydratedDocument<OutboxEvent>>,
   ) {}
 
   /**
@@ -75,8 +75,10 @@ export class LedgerService {
 
     const session = await this.connection.startSession();
     session.startTransaction({
+      // RULES.md 2.2 / ARCHITECTURE.md 2.2: leitura majority + durabilidade total.
       readConcern: { level: 'majority' },
       writeConcern: { w: 'majority', j: true },
+      readPreference: 'primary',
     });
 
     try {
@@ -133,7 +135,7 @@ export class LedgerService {
   /** Saldo projetado lido dentro da sessao corrente (read-your-writes). */
   private async getBalanceCentsInSession(
     accountId: string,
-    session: Types.ClientSession,
+    session: ClientSession,
   ): Promise<number> {
     const result = await this.ledgerModel
       .aggregate<{ _id: null; total: number | null }>([
