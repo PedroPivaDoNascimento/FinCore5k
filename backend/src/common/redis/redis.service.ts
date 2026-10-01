@@ -25,7 +25,12 @@ export class RedisService implements OnModuleDestroy {
           return { host, port: Number(port) };
         }),
         {
-          password: this.config.get('REDIS_PASSWORD') || undefined,
+          // TASK FIX 2.1: em ioredis v5, credenciais de autenticacao do
+          // Cluster (AUTH) pertencem a `redisOptions` — `password` na raiz de
+          // ClusterOptions nao existe e quebrava o build (TS2353).
+          redisOptions: {
+            password: this.config.get('REDIS_PASSWORD') || undefined,
+          },
           enableReadyCheck: true,
           scaleReads: 'slave',
         },
