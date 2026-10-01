@@ -31,6 +31,8 @@
 | 4 | Implementação Fase 2 (parcial) | `backend/src/main.ts`, `app.module.ts`, `common/redis/*`, `common/lock/*`, `common/idempotency/*`, `ledger/*` | TASK 2.1 (Fastify + pool tuning), 2.2 (interceptor idempotência), 2.3 (Ledger Append-Only + Outbox schemas), 2.4 (Redlock service) |
 | 5 | Instalação de dependências | `backend/node_modules/`, `backend/package-lock.json` | `npm install` executado com sucesso (log em `backend/npm-install.log`) |
 | 6 | **Criação do README.md (TASK Fase 5)** | `README.md` (raiz) | Resumo do produto, SLA/SLO, arquitetura, pré-requisitos, `.env`, passo a passo de execução do fonte, guia de testes de carga k6 (5k VUs) e extração de resultados, roadmap de fases |
+| 7 | **Fix OutboxEvent.payload (TASKS_FIX-OUTBOXEVENT.PAYLOAD 1.1/2.1)** | `backend/src/ledger/outbox-event.schema.ts` | Importação de `Schema as MongooseSchema` do pacote `mongoose` + tipo explícito `@Prop({ type: MongooseSchema.Types.Mixed, required: true })` no campo `payload`, eliminando o `CannotDetermineTypeError` (`Record<string, unknown>` é irresolvível via `emitDecoratorMetadata`) |
+| 8 | Validação Schema + Build + Runtime (TASKS 3.1/4.1) | — | `nest build` sem erros; ambiente local provisionado (MongoDB 7.0 replica set `rs0` + Redis 7.2); `npm run start:dev` subiu a aplicação (Fastify em `0.0.0.0:3000`) e rodou >90s sem ERROR/Exception; paths do schema confirmados (`payload` = `Mixed`) com teste real de insert/find em `outbox_events` |
 
 ### Observações Relevantes
 - `backend/src/app.module.ts` referencia `./transactions/transactions.module`, módulo ainda não implementado — necessário concluir as TASKS 2.2/2.3 (controller/service de transações) antes do primeiro `npm run build` sem erros.
