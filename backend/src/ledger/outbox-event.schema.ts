@@ -1,5 +1,8 @@
 import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
-import { HydratedDocument } from 'mongoose';
+// TASK FIX 1.1: importa `Schema as MongooseSchema` do pacote `mongoose` para
+// permitir o mapeamento EXPLICITO do tipo do campo `payload` no decorador
+// @Prop() abaixo (evita o CannotDetermineTypeError de refletividade).
+import { HydratedDocument, Schema as MongooseSchema } from 'mongoose';
 
 export type OutboxEventDocument = HydratedDocument<OutboxEvent>;
 
@@ -21,7 +24,12 @@ export class OutboxEvent {
   event_type!: 'TX_COMMITTED' | 'TX_FAILED' | 'NOTIFICATION';
 
   /** Payload JSON serializavel do evento (webhook / e-mail / push). */
-  @Prop({ required: true })
+  // TASK FIX 2.1: tipo explicito `MongooseSchema.Types.Mixed` no @Prop().
+  // Sem ele, emitDecoratorMetadata nao consegue resolver `Record<string, unknown>`
+  // (type design falha em index signatures) e o NestJS/Mongoose lanca
+  // "Cannot determine a type for the OutboxEvent.payload property"
+  // (CannotDetermineTypeError) na inicializacao do modulo.
+  @Prop({ type: MongooseSchema.Types.Mixed, required: true })
   payload!: Record<string, unknown>;
 
   @Prop({ required: true, default: 'PENDING', enum: ['PENDING', 'DISPATCHED'] })
