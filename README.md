@@ -137,6 +137,7 @@ Em produção/staging, aponte `MONGO_URI` para o cluster **Mongo Atlas Sharded (
 ```bash
 cd backend
 npm install
+npm install --save-dev ioredis-mock
 
 # Build de verificação
 npm run build
@@ -151,6 +152,7 @@ npm run start:prod
 A API sobe em `http://0.0.0.0:3000` com keep-alive e pool de conexões tunado para alta concorrência.
 
 ### 3. Executar os testes unitários / e2e
+
 
 ```bash
 cd backend

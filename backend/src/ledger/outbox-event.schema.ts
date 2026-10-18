@@ -35,6 +35,10 @@ export class OutboxEvent {
   @Prop({ required: true, default: 'PENDING', enum: ['PENDING', 'DISPATCHED'] })
   dispatch_status!: 'PENDING' | 'DISPATCHED';
 
+  /** Timestamp do despacho para fila BullMQ (preenchido pelo dispatcher). */
+  @Prop({ type: Date, required: false, default: null })
+  dispatched_at?: Date | null;
+
   @Prop({ required: true, default: () => new Date() })
   created_at!: Date;
 }
