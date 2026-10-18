@@ -267,18 +267,9 @@ kubectl apply -f infrastructure/k8s/
 kubectl scale deployment fincore-api --replicas=6   # KEDA assume o autoscaling
 ```
 
-## 🧭 Roadmap de Implementação
 
-| Fase | Escopo | Status |
-| :--- | :--- | :--- |
-| **1** | Infraestrutura (Mongo Atlas Sharded, Redis Cluster, K8s + NGINX, KEDA) | 🔲 Pendente |
-| **2** | Core Financial Engine (Fastify, Idempotência, Ledger Append-Only, Redlock, Outbox) | 🟡 Em andamento |
-| **3** | Frontend Next.js (Edge JWT, WebSocket, Optimistic Updates) | 🔲 Pendente |
-| **4** | Testes de Carga 5k CCU, Chaos Engineering e validação de consistência | 🔲 Pendente |
-| **5** | README / documentação de operação | ✅ Concluída |
-
-Detalhamento completo em [`docs/tasks/TASKS_SETUP(1).md`](docs/tasks/TASKS_SETUP\(1\).md). Diretrizes de código em [`docs/RULES.md`](docs/RULES.md); memória de decisões em [`docs/GEMINI.md`](docs/GEMINI.md).
+Detalhamento completo em [`docs/tasks/(1)TASKS_SETUP.md`](docs/tasks/TASKS_SETUP\(1\).md). Diretrizes de código em [`docs/RULES.md`](docs/RULES.md); memória de decisões em [`docs/GEMINI.md`](docs/GEMINI.md).
 
 ## 👤 Autor
 
-**Pedro Piva** – FinCore 5K v1.0.0-PROD
+**Pedro Piva**
